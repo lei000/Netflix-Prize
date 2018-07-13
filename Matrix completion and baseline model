@@ -1,0 +1,89 @@
+train=read.table("training_set.txt")
+test=read.table("testing_set.txt")
+set.seed(150)
+
+Y=train[,3]
+sigma=as.matrix(train[,1:2])
+m=max(train[,1])
+n=max(train[,2])
+u=mean(train[,3])
+
+
+r=5
+k=0
+K=100000
+lamda=10
+t=0.01 
+len=200
+objvalue=vector()
+
+
+B=matrix(runif(m*r), m, r)
+C=matrix(runif(n*r), n, r)
+
+
+
+
+while (k<=K){
+  index=sample(nrow(train), 1)
+  i=train[index, ][,1]
+  j=train[index, ][,2]
+  y_ij=train[index, ][,3]
+  e_hat=t(B[i,])%*%C[j,]-y_ij
+  B[i,]=B[i,]-t*(e_hat*C[j,]+lamda*B[i,])
+  C[j,]=C[j,]-t*(e_hat*B[i,]+lamda*C[j,])
+  
+  
+  
+  if (k%%len==0) {
+    rec <- k/len
+    Bnorm <- apply(B,1,norm,type="2")^2
+    Cnorm <- apply(C,1,norm,type="2")^2
+    Bm <- matrix(Bnorm,nrow=m,ncol=n,byrow=FALSE)
+    Cm <- matrix(Cnorm,nrow=m,ncol=n,byrow=TRUE)
+    objvalue[rec] <- mean(.5*(Y-(B%*%t(C))[sigma])^2+(.5*lamda*(Bm+Cm))[sigma],na.rm =TRUE)
+    
+    
+  }
+  
+  k=k+1
+}
+
+plot(objvalue)
+
+
+RMSE=sqrt(mean(test[,3]-(B%*%t(C))[as.matrix(test[,1:2])])^2)
+
+prediction=round((B%*%t(C))[as.matrix(test[,1:2])], 2)
+
+write.table(prediction, "prediction.txt", row.names=FALSE, col.names=FALSE)
+
+
+# baseline method
+u_vec=replicate(90570, u)
+b=rnorm(m)
+c=rnorm(n)
+
+while (k<=K){
+  index=sample(nrow(train), 1)
+  p=train[index, ][,1]
+  q=train[index, ][,2]
+  y_pq=train[index, ][,3]
+  e_hat1=y_pq-u-b[p]-c[q]
+  b[p]=b[p]-t*(e_hat1+lamda*b[p])
+  c[q]=c[q]-t*(e_hat1+lamda*c[q])
+  
+  
+  if (k%%len==0) {
+    rec <- k/len
+    b_full=b[train[,1]]
+    c_full=c[train[,2]]
+    objvalue[rec] <- mean((Y-u_vec-b_full-c_full)^2+lamda*(b_full^2+c_full^2),na.rm =TRUE)
+    
+    
+  }
+  
+  k=k+1
+}
+
+RMSE=sqrt(mean(test[,3]-replicate((dim(test))[1], u)-b[test[,1]]-c[test[,2]])^2)
